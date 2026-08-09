@@ -2,6 +2,10 @@
 
 将通达信(tdx)行情数据通过 HTTP API 对外开放。本包基于 `tdx.Client` 实现,以 RESTful GET 接口暴露股票、指数、扩展行情等数据。
 
+> 完整请求参数、响应字段、错误码和 curl 示例见
+> [`docs/api/http-api.md`](../../docs/api/http-api.md)；服务启动后也可直接访问
+> `http://localhost:8080/doc` 查看内置 HTML 文档。
+
 ## 快速开始
 
 ```go
@@ -50,6 +54,7 @@ func main() {
 | `WithPoolSize(n)` | 标准连接池大小 | `1` |
 | `WithExHqHosts(hosts...)` | 扩展行情服务器列表,为空则不启用扩展行情 | 无 |
 | `WithExPoolSize(n)` | 扩展连接池大小 | `1` |
+| `WithDialTimeout(timeout)` | 连接单个行情服务器的超时时间 | `5s` |
 | `WithOptions(opts...)` | 通达信连接选项,如 `tdx.WithDebug()`、`tdx.WithRedial()` | 无 |
 
 > `Default()` 会自动添加 `tdx.WithRedial()` 断线重连选项。
@@ -80,11 +85,13 @@ func main() {
 
 ## API 路由
 
-### 健康检查
+### 健康检查与文档
 
 | 路径 | 参数 | 说明 |
 | --- | --- | --- |
 | `GET /` | 无 | 健康检查,返回服务状态 |
+| `GET /ready` | 无 | 上游就绪检查,不可用时返回 HTTP 503 |
+| `GET /doc` | 无 | 内置 HTML API 文档,不使用 JSON 响应外壳 |
 
 ### 代码/数量
 
@@ -94,6 +101,7 @@ func main() {
 | `GET /code` | `exchange`, `start` | 获取指定交易所的证券代码(分页) |
 | `GET /code/all` | `exchange` | 获取指定交易所的全部证券代码 |
 | `GET /code/stocks` | 无 | 获取全部股票代码 |
+| `GET /code/stocks/detail` | 无 | 获取全部 A 股代码、名称、所属板块和行业代码,缓存 30 分钟 |
 | `GET /code/etfs` | 无 | 获取全部 ETF 代码 |
 | `GET /code/indexes` | 无 | 获取全部指数代码 |
 
@@ -124,9 +132,10 @@ func main() {
 | 路径 | 参数 | 说明 |
 | --- | --- | --- |
 | `GET /kline` | `type`, `code`, `start`, `count` | 获取指定类型的 K 线(分页) |
-| `GET /kline/all` | `type`, `code` | 获取指定类型的全部 K 线 |
+| `GET /kline/all` | `type`, `code`, 可选 `since` | 获取指定类型的全部 K 线,支持包含式起始日期 |
 | `GET /kline/minute` | `code`, `start`, `count` | 获取 1 分钟 K 线(分页) |
 | `GET /kline/minute/all` | `code` | 获取全部 1 分钟 K 线 |
+| `GET /kline/minute/241` | `code`, 可选 `since` | 获取包含 09:30 集合竞价分钟的 1 分钟 K 线 |
 | `GET /kline/5minute` | `code`, `start`, `count` | 获取 5 分钟 K 线(分页) |
 | `GET /kline/5minute/all` | `code` | 获取全部 5 分钟 K 线 |
 | `GET /kline/15minute` | `code`, `start`, `count` | 获取 15 分钟 K 线(分页) |
@@ -136,7 +145,7 @@ func main() {
 | `GET /kline/60minute` | `code`, `start`, `count` | 获取 60 分钟 K 线(分页) |
 | `GET /kline/60minute/all` | `code` | 获取全部 60 分钟 K 线 |
 | `GET /kline/day` | `code`, `start`, `count` | 获取日 K 线(分页) |
-| `GET /kline/day/all` | `code` | 获取全部日 K 线 |
+| `GET /kline/day/all` | `code`, 可选 `since`, `adjust` | 获取全部日 K 线,支持日期截断及前/后复权 |
 | `GET /kline/week` | `code`, `start`, `count` | 获取周 K 线(分页) |
 | `GET /kline/week/all` | `code` | 获取全部周 K 线 |
 | `GET /kline/month` | `code`, `start`, `count` | 获取月 K 线(分页) |
@@ -151,7 +160,7 @@ func main() {
 | 路径 | 参数 | 说明 |
 | --- | --- | --- |
 | `GET /index` | `type`, `code`, `start`, `count` | 获取指定类型的指数 K 线(分页) |
-| `GET /index/all` | `type`, `code` | 获取指定类型的全部指数 K 线 |
+| `GET /index/all` | `type`, `code`, 可选 `since` | 获取指定类型的全部指数 K 线,支持包含式起始日期 |
 | `GET /index/minute` | `code`, `start`, `count` | 获取指数 1 分钟 K 线(分页) |
 | `GET /index/5minute` | `code`, `start`, `count` | 获取指数 5 分钟 K 线(分页) |
 | `GET /index/15minute` | `code`, `start`, `count` | 获取指数 15 分钟 K 线(分页) |
@@ -210,6 +219,8 @@ func main() {
 | `start` | 起始位置(数字) | `0` |
 | `count` | 获取数量(数字) | `100` |
 | `date` | 日期,格式 `YYYYMMDD`(如 `20240101`) | `20240101` |
+| `since` | 可选、包含式 K 线起始日期,格式 `YYYYMMDD` | `20240101` |
+| `adjust` | 可选日线复权类型:`none`、`qfq`、`hfq`,默认 `none` | `qfq` |
 | `market` | 扩展行情市场代码(数字) | `47` |
 | `category` | 扩展行情类别(数字) | `1` |
 | `file` | 板块/报表文件名 | `block_gn.dat` |
@@ -236,11 +247,27 @@ func main() {
 
 ## 使用示例
 
+**查看 API 文档:**
+
+```text
+http://localhost:8080/doc
+```
+
 **获取报价:**
 
 ```bash
 curl "http://localhost:8080/quote?codes=sz000001,sh600519"
 ```
+
+**获取全部 A 股详情:**
+
+```bash
+curl "http://localhost:8080/code/stocks/detail"
+```
+
+响应中的 `blocks.category` 包含 `concept`、`industry`、`style`、`index`、
+`general`、`special`; `industry.tdxCode` 和 `industry.swCode` 分别是通达信、申万
+行业代码。
 
 **获取日 K 线:**
 
@@ -250,6 +277,12 @@ curl "http://localhost:8080/kline?type=9&code=600519&start=0&count=100"
 
 # 使用专用接口
 curl "http://localhost:8080/kline/day?code=600519&start=0&count=100"
+
+# 获取 2024 年以来的前复权日线
+curl "http://localhost:8080/kline/day/all?code=600519&since=20240101&adjust=qfq"
+
+# 获取包含 09:30 集合竞价分钟的 241 分钟 K 线
+curl "http://localhost:8080/kline/minute/241?code=sz000001&since=20260801"
 ```
 
 **获取扩展行情:**

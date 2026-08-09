@@ -77,6 +77,11 @@ func DialHostsRange(hosts []string, op ...client.Option) (cli *Client, err error
 	return DialWith(NewRangeDial(hosts), op...)
 }
 
+// DialHostsRangeWithTimeout 遍历标准行情地址并限制单个地址的连接时间
+func DialHostsRangeWithTimeout(hosts []string, timeout time.Duration, op ...client.Option) (cli *Client, err error) {
+	return DialWith(NewRangeDialWithTimeout(hosts, timeout), op...)
+}
+
 // DialWith 与服务器建立连接
 func DialWith(dial ios.DialFunc, op ...client.Option) (cli *Client, err error) {
 
@@ -92,6 +97,9 @@ func DialWith(dial ios.DialFunc, op ...client.Option) (cli *Client, err error) {
 		c.SetOption(op...)                             //自定义选项
 		c.Event.OnReadFrom = protocol.ReadFrom         //分包
 		c.Event.OnDealMessage = cli.handlerDealMessage //解析数据并处理
+		c.Event.OnDisconnect = func(*client.Client, error) {
+			cli.connected.Store(false)
+		}
 		c.Event.OnConnected = func(c *client.Client) error {
 			//无数据超时时间是60秒,30秒发送一个心跳包
 			c.GoTimerWriter(30*time.Second, func(w ios.MoreWriter) error {
@@ -100,9 +108,11 @@ func DialWith(dial ios.DialFunc, op ...client.Option) (cli *Client, err error) {
 				return err
 			})
 			f := protocol.MConnect.Frame()
-			if _, err = c.Write(f.Bytes()); err != nil {
-				c.Close()
+			if _, writeErr := c.Write(f.Bytes()); writeErr != nil {
+				c.CloseWithErr(writeErr)
+				return writeErr
 			}
+			cli.connected.Store(true)
 			return nil
 		}
 	})
@@ -120,6 +130,12 @@ type Client struct {
 	Wait           *wait.Entity //异步回调,设置超时时间,超时则返回错误
 	m              *maps.Safe   //有部分解析需要用到代码,返回数据获取不到,固请求的时候缓存下
 	msgID          uint32       //消息id,使用SendFrame自动累加
+	connected      atomic.Bool  //当前是否已连接
+}
+
+// Connected 当前是否已连接到行情服务器
+func (this *Client) Connected() bool {
+	return this != nil && this.connected.Load()
 }
 
 // handlerDealMessage 处理服务器响应的数据

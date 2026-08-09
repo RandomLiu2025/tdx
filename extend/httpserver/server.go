@@ -1,22 +1,28 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/injoyai/ios/client"
 	"github.com/injoyai/tdx"
+	apidoc "github.com/injoyai/tdx/docs/api"
 )
+
+const defaultDialTimeout = 5 * time.Second
 
 // Option HTTP 服务配置选项
 type Option func(*serverConfig)
 
 type serverConfig struct {
-	addr       string
-	hosts      []string
-	poolSize   int
-	exHqHosts  []string
-	exPoolSize int
-	options    []client.Option
+	addr        string
+	hosts       []string
+	poolSize    int
+	exHqHosts   []string
+	exPoolSize  int
+	dialTimeout time.Duration
+	options     []client.Option
 }
 
 // WithAddr 设置监听地址
@@ -44,6 +50,11 @@ func WithExPoolSize(n int) Option {
 	return func(c *serverConfig) { c.exPoolSize = n }
 }
 
+// WithDialTimeout 设置连接单个行情地址的超时时间
+func WithDialTimeout(timeout time.Duration) Option {
+	return func(c *serverConfig) { c.dialTimeout = timeout }
+}
+
 // WithOptions 设置通达信连接选项,如 tdx.WithDebug()、tdx.WithRedial()
 func WithOptions(opts ...client.Option) Option {
 	return func(c *serverConfig) {
@@ -53,24 +64,32 @@ func WithOptions(opts ...client.Option) Option {
 
 // Server HTTP 服务
 type Server struct {
-	pool   tdx.IPool
-	exPool tdx.IPool
-	server *http.Server
+	pool         *tdx.Pool
+	exPool       *tdx.Pool
+	server       *http.Server
+	stockDetails stockDetailCache
 }
 
 // New 创建并初始化 HTTP 服务
 func New(opts ...Option) (*Server, error) {
 	cfg := &serverConfig{
-		addr:     ":8080",
-		hosts:    tdx.Hosts,
-		poolSize: 1,
+		addr:        ":8080",
+		hosts:       tdx.Hosts,
+		poolSize:    1,
+		dialTimeout: defaultDialTimeout,
 	}
 	for _, opt := range opts {
 		opt(cfg)
 	}
+	if cfg.dialTimeout <= 0 {
+		cfg.dialTimeout = defaultDialTimeout
+	}
 
+	standardPoolIndex := 0
 	pool, err := tdx.NewPool(func() (*tdx.Client, error) {
-		return tdx.DialHostsRange(cfg.hosts, cfg.options...)
+		hosts := rotateHosts(cfg.hosts, standardPoolIndex)
+		standardPoolIndex++
+		return tdx.DialHostsRangeWithTimeout(hosts, cfg.dialTimeout, cfg.options...)
 	}, cfg.poolSize)
 	if err != nil {
 		return nil, err
@@ -82,8 +101,11 @@ func New(opts ...Option) (*Server, error) {
 		if cfg.exPoolSize <= 0 {
 			cfg.exPoolSize = 1
 		}
+		extendedPoolIndex := 0
 		exPool, err := tdx.NewPool(func() (*tdx.Client, error) {
-			return tdx.DialExHqHosts(cfg.exHqHosts, cfg.options...)
+			hosts := rotateHosts(cfg.exHqHosts, extendedPoolIndex)
+			extendedPoolIndex++
+			return tdx.DialExHqHostsWithTimeout(hosts, cfg.dialTimeout, cfg.options...)
 		}, cfg.exPoolSize)
 		if err != nil {
 			return nil, err
@@ -112,6 +134,22 @@ func (s *Server) Run() error {
 	return s.server.ListenAndServe()
 }
 
+// Shutdown 优雅关闭 HTTP 服务
+func (server *Server) Shutdown(ctx context.Context) error {
+	return server.server.Shutdown(ctx)
+}
+
+func rotateHosts(hosts []string, offset int) []string {
+	if len(hosts) == 0 {
+		return nil
+	}
+	offset %= len(hosts)
+	rotated := make([]string, 0, len(hosts))
+	rotated = append(rotated, hosts[offset:]...)
+	rotated = append(rotated, hosts[:offset]...)
+	return rotated
+}
+
 // Close 关闭 HTTP 服务
 func (s *Server) Close() error {
 	return s.server.Close()
@@ -120,13 +158,16 @@ func (s *Server) Close() error {
 // registerRoutes 注册所有路由
 func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// 健康检查
-	mux.HandleFunc("GET /", s.handleHealth)
+	mux.HandleFunc("GET /{$}", s.handleHealth)
+	mux.HandleFunc("GET /ready", s.handleReady)
+	mux.HandleFunc("GET /doc", s.handleDoc)
 
 	// 代码/数量
 	mux.HandleFunc("GET /count", s.handleCount)
 	mux.HandleFunc("GET /code", s.handleCode)
 	mux.HandleFunc("GET /code/all", s.handleCodeAll)
 	mux.HandleFunc("GET /code/stocks", s.handleStockCodeAll)
+	mux.HandleFunc("GET /code/stocks/detail", s.handleStockDetails)
 	mux.HandleFunc("GET /code/etfs", s.handleETFCodeAll)
 	mux.HandleFunc("GET /code/indexes", s.handleIndexCodeAll)
 
@@ -151,6 +192,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /kline/all", s.handleKlineAll)
 	mux.HandleFunc("GET /kline/minute", s.handleKlineMinute)
 	mux.HandleFunc("GET /kline/minute/all", s.handleKlineMinuteAll)
+	mux.HandleFunc("GET /kline/minute/241", s.handleKlineMinute241)
 	mux.HandleFunc("GET /kline/5minute", s.handleKline5Minute)
 	mux.HandleFunc("GET /kline/5minute/all", s.handleKline5MinuteAll)
 	mux.HandleFunc("GET /kline/15minute", s.handleKline15Minute)
@@ -218,4 +260,26 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 // handleHealth 健康检查
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	respondOK(w, map[string]string{"status": "running"})
+}
+
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if s.pool == nil || !s.pool.Ready() {
+		respondErr(w, http.StatusServiceUnavailable, "标准行情连接未就绪")
+		return
+	}
+	if s.exPool != nil && !s.exPool.Ready() {
+		respondErr(w, http.StatusServiceUnavailable, "扩展行情连接未就绪")
+		return
+	}
+	respondOK(w, map[string]any{
+		"status":          "ready",
+		"standard":        true,
+		"extendedEnabled": s.exPool != nil,
+	})
+}
+
+func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_, _ = w.Write(apidoc.HTML)
 }

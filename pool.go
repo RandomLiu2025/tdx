@@ -32,16 +32,36 @@ func NewPool(dial func() (*Client, error), number int) (*Pool, error) {
 	for i := 0; i < number; i++ {
 		c, err := dial()
 		if err != nil {
+			for _, connectedClient := range p.clients {
+				if connectedClient != nil && connectedClient.Client != nil {
+					_ = connectedClient.CloseAll()
+				}
+			}
 			return nil, err
 		}
+		p.clients = append(p.clients, c)
 		p.ch <- c
 	}
 	return p, nil
 }
 
 type Pool struct {
-	ch chan *Client
+	ch      chan *Client
+	clients []*Client
 	*safe.Closer
+}
+
+// Ready 是否至少有一个已连接客户端
+func (this *Pool) Ready() bool {
+	if this == nil {
+		return false
+	}
+	for _, client := range this.clients {
+		if client.Connected() {
+			return true
+		}
+	}
+	return false
 }
 
 func (this *Pool) Get() (*Client, error) {

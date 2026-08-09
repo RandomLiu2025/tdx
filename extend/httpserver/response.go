@@ -5,8 +5,18 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/injoyai/tdx/protocol"
+)
+
+type klineAdjustment string
+
+const (
+	adjustmentNone klineAdjustment = "none"
+	adjustmentQFQ  klineAdjustment = "qfq"
+	adjustmentHFQ  klineAdjustment = "hfq"
 )
 
 // Response 统一响应结构
@@ -86,6 +96,31 @@ func queryUint16Default(r *http.Request, key string, def uint16) uint16 {
 		return def
 	}
 	return uint16(n)
+}
+
+func querySince(r *http.Request) (time.Time, bool, error) {
+	value := r.URL.Query().Get("since")
+	if value == "" {
+		return time.Time{}, false, nil
+	}
+	parsed, err := time.ParseInLocation("20060102", value, time.Local)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("参数 since 格式错误: %s (应为 YYYYMMDD)", value)
+	}
+	return parsed, true, nil
+}
+
+func queryKlineAdjustment(r *http.Request) (klineAdjustment, error) {
+	adjustment := klineAdjustment(strings.ToLower(r.URL.Query().Get("adjust")))
+	if adjustment == "" {
+		return adjustmentNone, nil
+	}
+	switch adjustment {
+	case adjustmentNone, adjustmentQFQ, adjustmentHFQ:
+		return adjustment, nil
+	default:
+		return "", fmt.Errorf("不支持的复权类型: %s (可选: none, qfq, hfq)", adjustment)
+	}
 }
 
 // parseExchange 将字符串转换为 protocol.Exchange

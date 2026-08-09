@@ -3,6 +3,7 @@ package httpserver
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/injoyai/tdx"
 	"github.com/injoyai/tdx/protocol"
@@ -96,6 +97,23 @@ func (s *Server) handleStockCodeAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondOK(w, resp)
+}
+
+func (s *Server) handleStockDetails(w http.ResponseWriter, r *http.Request) {
+	details, err := s.stockDetails.getOrLoad(time.Now(), func() ([]StockDetail, error) {
+		var loaded []StockDetail
+		err := s.pool.Do(func(c *tdx.Client) error {
+			var loadErr error
+			loaded, loadErr = loadStockDetails(c)
+			return loadErr
+		})
+		return loaded, err
+	})
+	if err != nil {
+		respondErr(w, http.StatusOK, err.Error())
+		return
+	}
+	respondOK(w, details)
 }
 
 func (s *Server) handleETFCodeAll(w http.ResponseWriter, r *http.Request) {
@@ -473,9 +491,14 @@ func (s *Server) handleKlineAll(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	since, bounded, err := querySince(r)
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var resp *protocol.KlineResp
 	err = s.pool.Do(func(c *tdx.Client) error {
-		resp, err = c.GetKlineAll(typ, code)
+		resp, err = loadKlineAll(c, typ, code, since, bounded)
 		return err
 	})
 	if err != nil {
@@ -524,6 +547,34 @@ func (s *Server) handleKlineMinuteAll(w http.ResponseWriter, r *http.Request) {
 	var resp *protocol.KlineResp
 	err = s.pool.Do(func(c *tdx.Client) error {
 		resp, err = c.GetKlineMinuteAll(code)
+		return err
+	})
+	if err != nil {
+		respondErr(w, http.StatusOK, err.Error())
+		return
+	}
+	respondOK(w, resp)
+}
+
+func (s *Server) handleKlineMinute241(w http.ResponseWriter, r *http.Request) {
+	code, err := queryStr(r, "code")
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	since, bounded, err := querySince(r)
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var resp *protocol.KlineResp
+	err = s.pool.Do(func(c *tdx.Client) error {
+		resp, err = c.GetKlineMinute241Until(code, func(kline *protocol.Kline) bool {
+			return bounded && kline.Time.Before(since)
+		})
+		if err == nil && bounded {
+			filterKlinesSince(resp, since)
+		}
 		return err
 	})
 	if err != nil {
@@ -751,10 +802,29 @@ func (s *Server) handleKlineDayAll(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	since, bounded, err := querySince(r)
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	adjustment, err := queryKlineAdjustment(r)
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var resp *protocol.KlineResp
 	err = s.pool.Do(func(c *tdx.Client) error {
-		resp, err = c.GetKlineDayAll(code)
-		return err
+		loadBounded := bounded && adjustment == adjustmentNone
+		resp, err = loadKlineAll(c, protocol.TypeKlineDay, code, since, loadBounded)
+		if err != nil || adjustment == adjustmentNone {
+			return err
+		}
+		gbbq, err := c.GetGbbq(code)
+		if err != nil {
+			return err
+		}
+		adjustAndFilterKlines(resp, gbbq, adjustment, since, bounded)
+		return nil
 	})
 	if err != nil {
 		respondErr(w, http.StatusOK, err.Error())
@@ -993,9 +1063,14 @@ func (s *Server) handleIndexAll(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	since, bounded, err := querySince(r)
+	if err != nil {
+		respondErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var resp *protocol.KlineResp
 	err = s.pool.Do(func(c *tdx.Client) error {
-		resp, err = c.GetIndexAll(typ, code)
+		resp, err = loadIndexAll(c, typ, code, since, bounded)
 		return err
 	})
 	if err != nil {

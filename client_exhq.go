@@ -31,6 +31,11 @@ func DialExHqHosts(hosts []string, op ...client.Option) (*Client, error) {
 	return dialExHqWith(NewExRangeDial(hosts), op...)
 }
 
+// DialExHqHostsWithTimeout 遍历扩展行情地址并限制单个地址的连接时间
+func DialExHqHostsWithTimeout(hosts []string, timeout time.Duration, op ...client.Option) (*Client, error) {
+	return dialExHqWith(NewExRangeDialWithTimeout(hosts, timeout), op...)
+}
+
 // dialExHqWith 建立扩展行情连接:握手用 ExSetup,心跳用品种数量请求。
 func dialExHqWith(dial ios.DialFunc, op ...client.Option) (cli *Client, err error) {
 	cli = &Client{
@@ -44,12 +49,16 @@ func dialExHqWith(dial ios.DialFunc, op ...client.Option) (cli *Client, err erro
 		c.SetOption(op...)
 		c.Event.OnReadFrom = protocol.ReadFrom
 		c.Event.OnDealMessage = cli.handlerDealMessage
+		c.Event.OnDisconnect = func(*client.Client, error) {
+			cli.connected.Store(false)
+		}
 		c.Event.OnConnected = func(c *client.Client) error {
 			// 握手(响应忽略)
 			if _, err := c.Write(protocol.MEx.FrameSetup().Bytes()); err != nil {
 				c.Close()
 				return err
 			}
+			cli.connected.Store(true)
 			// 心跳:30s 发送品种数量请求(响应无等待者,被丢弃)
 			c.GoTimerWriter(30*time.Second, func(w ios.MoreWriter) error {
 				_, err := w.Write(protocol.MEx.FrameCount().Bytes())

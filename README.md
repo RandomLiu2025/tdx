@@ -42,6 +42,9 @@
 
 ## 🚀 快速开始
 
+HTTP 服务的完整请求参数、响应结构和示例见
+[`docs/api/http-api.md`](docs/api/http-api.md)。
+
 ```go
 package main
 
@@ -70,6 +73,113 @@ func main() {
 	<-c.Done()
 }
 ```
+
+---
+
+## 🐳 Docker 部署 HTTP API
+
+仓库内置 RESTful HTTP 行情服务，完整接口见
+[`docs/api/http-api.md`](docs/api/http-api.md)。推荐使用启动脚本，它会
+检查 Docker 环境、构建镜像、启动服务并等待健康检查通过：
+
+```bash
+./start.sh docker
+```
+
+不传模式时默认使用 Docker，即 `./start.sh` 与 `./start.sh docker` 等价。
+
+默认等待 120 秒，可通过环境变量调整：
+
+```bash
+STARTUP_TIMEOUT=180 ./start.sh
+```
+
+也可以直接使用 Compose：
+
+```bash
+docker compose up -d --build
+curl http://localhost:8080/
+curl http://localhost:8080/ready
+```
+
+存活检查成功后返回：
+
+```json
+{"code":0,"msg":"ok","data":{"status":"running"}}
+```
+
+`GET /ready` 会额外检查标准行情连接，以及已启用的扩展行情连接。上游不可用时
+返回 HTTP 503，Docker 健康检查也使用该接口。
+
+常用配置通过环境变量传入：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TDX_API_PORT` | `8080` | Compose 映射到宿主机的端口 |
+| `TDX_HTTP_ADDR` | `:8080` | 容器内 HTTP 监听地址 |
+| `TDX_HOSTS` | 内置服务器列表 | 标准行情地址，多个值使用逗号分隔 |
+| `TDX_POOL_SIZE` | `1` | 标准行情连接池大小 |
+| `TDX_EXHQ_HOSTS` | 空 | 扩展行情地址；设置后启用 `/ex/*` 路由 |
+| `TDX_EXHQ_POOL_SIZE` | `1` | 扩展行情连接池大小 |
+| `TDX_DIAL_TIMEOUT` | `5s` | 连接单个行情 IP 的超时时间 |
+| `TDX_SHUTDOWN_TIMEOUT` | `10s` | 优雅退出等待时间 |
+
+例如自定义宿主机端口和连接池大小：
+
+```bash
+TDX_API_PORT=9090 TDX_POOL_SIZE=2 docker compose up -d --build
+curl http://localhost:9090/quote?codes=sz000001,sh600519
+```
+
+也可以直接构建和运行镜像：
+
+```bash
+docker build -t tdx-api .
+docker run --rm -p 8080:8080 -e TDX_POOL_SIZE=2 tdx-api
+```
+
+服务启动后可在浏览器打开 `http://localhost:8080/doc` 查看内置 API 请求参数、响应
+结构和 curl 示例。文档已编译进二进制，Docker 与本地部署都不需要额外挂载文件。
+
+镜像构建默认将 Alpine 软件源切换为阿里云，并依次使用 `goproxy.cn`、阿里云
+Go Proxy 下载模块。需要自定义时可覆盖构建参数：
+
+```bash
+docker build \
+  --build-arg ALPINE_MIRROR=mirrors.aliyun.com \
+  --build-arg GOPROXY=https://goproxy.cn,direct \
+  -t tdx-api .
+```
+
+基础镜像仍由 Docker 拉取；如果 Docker Hub 访问较慢，还需在 Docker daemon 中
+配置 `registry-mirrors`。
+
+部署环境需要允许访问通达信标准行情 TCP 7709；启用扩展行情时还需要允许
+TCP 7727。API 本身不提供鉴权，不建议直接暴露到公网。
+
+---
+
+## 💻 本地部署 HTTP API
+
+本地模式不依赖 Docker，需要 Go 1.23 或更高版本。脚本会使用国内 Go Proxy
+构建二进制到 `.local/bin/tdx-api`，随后以前台方式启动服务：
+
+```bash
+./start.sh local
+```
+
+服务继承当前终端中的配置环境变量，例如：
+
+```bash
+TDX_HTTP_ADDR=:9090 \
+TDX_POOL_SIZE=2 \
+TDX_HOSTS=127.0.0.1:7709,127.0.0.2:7709 \
+TDX_DIAL_TIMEOUT=3s \
+./start.sh local
+```
+
+按 `Ctrl+C` 会将中断信号直接交给 `tdx-api`，由服务执行优雅退出。首次构建需要
+联网下载 Go 模块。
 
 ---
 
@@ -323,4 +433,3 @@ _ = markets; _ = n; _ = insts; _ = q; _ = bars; _ = ticks
 MIT License - 详见 [LICENSE](LICENSE)
 
 ⭐ 喜欢这个项目吗？点个 Star 支持一下吧！  
-
