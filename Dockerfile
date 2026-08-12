@@ -35,12 +35,12 @@ COPY --from=builder --chown=tdx:tdx /out/tdx-api /usr/local/bin/tdx-api
 
 USER tdx
 
-ENV TDX_HTTP_ADDR=:8080
+ENV TDX_HTTP_ADDR=:18080
 
-EXPOSE 8080
+EXPOSE 18080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/ready || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:18080/ready || exit 1
 
 STOPSIGNAL SIGTERM
 

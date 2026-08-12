@@ -5,7 +5,7 @@
 
 ## 基本信息
 
-- 默认地址：`http://localhost:8080`
+- 默认地址：`http://localhost:18080`
 - 请求方法：全部为 `GET`
 - 参数位置：URL Query
 - 请求体：无
@@ -463,57 +463,57 @@ JSON 字段。
 ### 存活、就绪与文档
 
 ```bash
-curl "http://localhost:8080/"
-curl -i "http://localhost:8080/ready"
-curl "http://localhost:8080/doc"
+curl "http://localhost:18080/"
+curl -i "http://localhost:18080/ready"
+curl "http://localhost:18080/doc"
 ```
 
-推荐直接在浏览器打开 `http://localhost:8080/doc` 阅读完整文档。
+推荐直接在浏览器打开 `http://localhost:18080/doc` 阅读完整文档。
 
 ### 代码与实时行情
 
 ```bash
-curl "http://localhost:8080/count?exchange=sh"
-curl "http://localhost:8080/code?exchange=sz&start=0"
-curl "http://localhost:8080/code/stocks/detail"
-curl "http://localhost:8080/quote?codes=sz000001,sh600519"
+curl "http://localhost:18080/count?exchange=sh"
+curl "http://localhost:18080/code?exchange=sz&start=0"
+curl "http://localhost:18080/code/stocks/detail"
+curl "http://localhost:18080/quote?codes=sz000001,sh600519"
 ```
 
 ### 分时、成交与 K 线
 
 ```bash
-curl "http://localhost:8080/minute?code=sz000001"
-curl "http://localhost:8080/trade?code=sz000001&start=0&count=100"
-curl "http://localhost:8080/kline/day?code=sh600519&start=0&count=100"
-curl "http://localhost:8080/kline/all?type=9&code=sh600519&since=20240101"
-curl "http://localhost:8080/kline/day/all?code=sh600519&adjust=qfq&since=20240101"
-curl "http://localhost:8080/kline/minute/241?code=sz000001&since=20260801"
-curl "http://localhost:8080/index/all?type=9&code=sh000001&since=20240101"
+curl "http://localhost:18080/minute?code=sz000001"
+curl "http://localhost:18080/trade?code=sz000001&start=0&count=100"
+curl "http://localhost:18080/kline/day?code=sh600519&start=0&count=100"
+curl "http://localhost:18080/kline/all?type=9&code=sh600519&since=20240101"
+curl "http://localhost:18080/kline/day/all?code=sh600519&adjust=qfq&since=20240101"
+curl "http://localhost:18080/kline/minute/241?code=sz000001&since=20260801"
+curl "http://localhost:18080/index/all?type=9&code=sh000001&since=20240101"
 ```
 
 ### 财务与 F10
 
 ```bash
-curl "http://localhost:8080/finance?exchange=sh&code=600519"
-curl "http://localhost:8080/company/category?exchange=sh&code=600519"
-curl "http://localhost:8080/company/content?exchange=sh&code=600519&filename=600519.txt&start=0&length=1000"
+curl "http://localhost:18080/finance?exchange=sh&code=600519"
+curl "http://localhost:18080/company/category?exchange=sh&code=600519"
+curl "http://localhost:18080/company/content?exchange=sh&code=600519&filename=600519.txt&start=0&length=1000"
 ```
 
 ### 板块与报表
 
 ```bash
-curl "http://localhost:8080/block/data?file=block_gn.dat"
-curl "http://localhost:8080/block/data/index?file=block_zs.dat"
-curl "http://localhost:8080/report/file?file=zhb.zip"
+curl "http://localhost:18080/block/data?file=block_gn.dat"
+curl "http://localhost:18080/block/data/index?file=block_zs.dat"
+curl "http://localhost:18080/report/file?file=zhb.zip"
 ```
 
 ### 扩展行情
 
 ```bash
-curl "http://localhost:8080/ex/markets"
-curl "http://localhost:8080/ex/instruments?start=0&count=100"
-curl "http://localhost:8080/ex/quote?market=47&code=600519"
-curl "http://localhost:8080/ex/bars?category=9&market=47&code=600519&start=0&count=100"
+curl "http://localhost:18080/ex/markets"
+curl "http://localhost:18080/ex/instruments?start=0&count=100"
+curl "http://localhost:18080/ex/quote?market=47&code=600519"
+curl "http://localhost:18080/ex/bars?category=9&market=47&code=600519&start=0&count=100"
 ```
 
 扩展市场编号和代码应以当前服务器返回的 `/ex/markets`、`/ex/instruments` 为准。

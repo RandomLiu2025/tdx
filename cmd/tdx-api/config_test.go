@@ -12,8 +12,8 @@ func TestLoadConfigDefaults(test *testing.T) {
 		test.Fatalf("loadConfigFromEnv() error = %v", err)
 	}
 
-	if cfg.addr != ":8080" {
-		test.Errorf("addr = %q, want %q", cfg.addr, ":8080")
+	if cfg.addr != ":18080" {
+		test.Errorf("addr = %q, want %q", cfg.addr, ":18080")
 	}
 	if cfg.hosts != nil {
 		test.Errorf("hosts = %#v, want nil", cfg.hosts)

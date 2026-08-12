@@ -4,7 +4,7 @@
 
 > 完整请求参数、响应字段、错误码和 curl 示例见
 > [`docs/api/http-api.md`](../../docs/api/http-api.md)；服务启动后也可直接访问
-> `http://localhost:8080/doc` 查看内置 HTML 文档。
+> `http://localhost:18080/doc` 查看内置 HTML 文档。
 
 ## 快速开始
 
@@ -27,7 +27,7 @@ func main() {
 
 	// 方式二: 自定义配置
 	s, err = httpserver.New(
-		httpserver.WithAddr(":8080"),
+		httpserver.WithAddr(":18080"),
 		httpserver.WithPoolSize(2),
 		httpserver.WithExHqHosts(tdx.ExHosts...), // 可选,启用扩展行情 /ex/* 路由
 		httpserver.WithOptions(tdx.WithRedial()),
@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Println("服务启动,监听 :8080")
+	log.Println("服务启动,监听 :18080")
 	if err := s.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func main() {
 
 | 选项函数 | 说明 | 默认值 |
 | --- | --- | --- |
-| `WithAddr(addr)` | HTTP 监听地址 | `":8080"` |
+| `WithAddr(addr)` | HTTP 监听地址 | `":18080"` |
 | `WithHosts(hosts...)` | 标准行情服务器列表 | `tdx.Hosts` |
 | `WithPoolSize(n)` | 标准连接池大小 | `1` |
 | `WithExHqHosts(hosts...)` | 扩展行情服务器列表,为空则不启用扩展行情 | 无 |
@@ -250,19 +250,19 @@ func main() {
 **查看 API 文档:**
 
 ```text
-http://localhost:8080/doc
+http://localhost:18080/doc
 ```
 
 **获取报价:**
 
 ```bash
-curl "http://localhost:8080/quote?codes=sz000001,sh600519"
+curl "http://localhost:18080/quote?codes=sz000001,sh600519"
 ```
 
 **获取全部 A 股详情:**
 
 ```bash
-curl "http://localhost:8080/code/stocks/detail"
+curl "http://localhost:18080/code/stocks/detail"
 ```
 
 响应中的 `blocks.category` 包含 `concept`、`industry`、`style`、`index`、
@@ -273,24 +273,24 @@ curl "http://localhost:8080/code/stocks/detail"
 
 ```bash
 # 使用通用接口,指定 type=9(日)
-curl "http://localhost:8080/kline?type=9&code=600519&start=0&count=100"
+curl "http://localhost:18080/kline?type=9&code=600519&start=0&count=100"
 
 # 使用专用接口
-curl "http://localhost:8080/kline/day?code=600519&start=0&count=100"
+curl "http://localhost:18080/kline/day?code=600519&start=0&count=100"
 
 # 获取 2024 年以来的前复权日线
-curl "http://localhost:8080/kline/day/all?code=600519&since=20240101&adjust=qfq"
+curl "http://localhost:18080/kline/day/all?code=600519&since=20240101&adjust=qfq"
 
 # 获取包含 09:30 集合竞价分钟的 241 分钟 K 线
-curl "http://localhost:8080/kline/minute/241?code=sz000001&since=20260801"
+curl "http://localhost:18080/kline/minute/241?code=sz000001&since=20260801"
 ```
 
 **获取扩展行情:**
 
 ```bash
 # 获取扩展行情市场列表
-curl "http://localhost:8080/ex/markets"
+curl "http://localhost:18080/ex/markets"
 
 # 获取扩展行情报价
-curl "http://localhost:8080/ex/quote?market=47&code=600519"
+curl "http://localhost:18080/ex/quote?market=47&code=600519"
 ```

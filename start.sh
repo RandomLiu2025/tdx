@@ -55,10 +55,10 @@ start_docker() {
 
         case "$container_status" in
             healthy|running)
-                published_address=$(docker compose port tdx-api 8080 2>/dev/null | sed -n '1p')
+                published_address=$(docker compose port tdx-api 18080 2>/dev/null | sed -n '1p')
                 published_port=${published_address##*:}
                 if [ -z "$published_port" ]; then
-                    published_port=${TDX_API_PORT:-8080}
+                    published_port=${TDX_API_PORT:-18080}
                 fi
                 printf 'tdx-api 启动成功: http://localhost:%s/\n' "$published_port"
                 return 0
@@ -77,7 +77,13 @@ start_docker() {
 }
 
 start_local() {
-    command -v go >/dev/null 2>&1 || fail "未安装 Go，请先安装 Go 1.23 或更高版本"
+    go_bin=""
+    if [ -x "$ROOT_DIR/.local/go/bin/go" ]; then
+        go_bin="$ROOT_DIR/.local/go/bin/go"
+    elif command -v go >/dev/null 2>&1; then
+        go_bin=$(command -v go)
+    fi
+    [ -n "$go_bin" ] || fail "未安装 Go，且未找到项目内工具链 .local/go/bin/go，请安装 Go 1.23 或更高版本"
 
     cd "$ROOT_DIR"
     binary_dir="$ROOT_DIR/.local/bin"
@@ -86,11 +92,15 @@ start_local() {
 
     mkdir -p "$binary_dir"
     printf '%s\n' '正在使用本机 Go 工具链构建 tdx-api...'
-    if ! GOPROXY="$local_goproxy" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$binary_path" ./cmd/tdx-api; then
+    if ! GOPROXY="$local_goproxy" \
+        GOMODCACHE="$ROOT_DIR/.local/go-mod" \
+        GOCACHE="$ROOT_DIR/.local/go-cache" \
+        CGO_ENABLED=0 \
+        "$go_bin" build -trimpath -ldflags="-s -w" -o "$binary_path" ./cmd/tdx-api; then
         fail "本地构建失败"
     fi
 
-    printf '本地服务即将启动，监听地址 %s；按 Ctrl+C 停止。\n' "${TDX_HTTP_ADDR:-:8080}"
+    printf '本地服务即将启动，监听地址 %s；按 Ctrl+C 停止。\n' "${TDX_HTTP_ADDR:-:18080}"
     exec "$binary_path"
 }
 

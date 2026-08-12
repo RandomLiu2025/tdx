@@ -98,8 +98,8 @@ STARTUP_TIMEOUT=180 ./start.sh
 
 ```bash
 docker compose up -d --build
-curl http://localhost:8080/
-curl http://localhost:8080/ready
+curl http://localhost:18080/
+curl http://localhost:18080/ready
 ```
 
 存活检查成功后返回：
@@ -115,8 +115,8 @@ curl http://localhost:8080/ready
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `TDX_API_PORT` | `8080` | Compose 映射到宿主机的端口 |
-| `TDX_HTTP_ADDR` | `:8080` | 容器内 HTTP 监听地址 |
+| `TDX_API_PORT` | `18080` | Compose 映射到宿主机的端口 |
+| `TDX_HTTP_ADDR` | `:18080` | 容器内 HTTP 监听地址 |
 | `TDX_HOSTS` | 内置服务器列表 | 标准行情地址，多个值使用逗号分隔 |
 | `TDX_POOL_SIZE` | `1` | 标准行情连接池大小 |
 | `TDX_EXHQ_HOSTS` | 空 | 扩展行情地址；设置后启用 `/ex/*` 路由 |
@@ -135,10 +135,10 @@ curl http://localhost:9090/quote?codes=sz000001,sh600519
 
 ```bash
 docker build -t tdx-api .
-docker run --rm -p 8080:8080 -e TDX_POOL_SIZE=2 tdx-api
+docker run --rm -p 18080:18080 -e TDX_POOL_SIZE=2 tdx-api
 ```
 
-服务启动后可在浏览器打开 `http://localhost:8080/doc` 查看内置 API 请求参数、响应
+服务启动后可在浏览器打开 `http://localhost:18080/doc` 查看内置 API 请求参数、响应
 结构和 curl 示例。文档已编译进二进制，Docker 与本地部署都不需要额外挂载文件。
 
 镜像构建默认将 Alpine 软件源切换为阿里云，并依次使用 `goproxy.cn`、阿里云

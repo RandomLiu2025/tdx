@@ -73,7 +73,7 @@ type Server struct {
 // New 创建并初始化 HTTP 服务
 func New(opts ...Option) (*Server, error) {
 	cfg := &serverConfig{
-		addr:        ":8080",
+		addr:        ":18080",
 		hosts:       tdx.Hosts,
 		poolSize:    1,
 		dialTimeout: defaultDialTimeout,

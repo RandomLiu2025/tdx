@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultHTTPAddr        = ":8080"
+	defaultHTTPAddr        = ":18080"
 	defaultPoolSize        = 1
 	defaultExPoolSize      = 1
 	defaultDialTimeout     = 5 * time.Second
